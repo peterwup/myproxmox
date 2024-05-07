@@ -7,7 +7,7 @@
 #----------------------- Variablen --------------------------------------------------------------------------------#
 
 PATH=/usr/sbin:${PATH}
-set -x                                                         # SET-X damit die Ausfuehrung protokolliert wird
+# set -x                                                         # SET-X damit die Ausfuehrung protokolliert wird
 storeid=backup                                                  # Variable - um welches Storage handelt es sich
 mac="00:08:9B:CC:DD:02"                                         # MAC Adresse des PBS-Servers
 host="192.168.0.23"                                             # Hostname oder IP des PBS-Servers
@@ -18,10 +18,7 @@ storagetype=dir                                                                 
 sleep_after_wakeup=8m                                           # Zeit die nach dem wakeup des servers gewartet wird bevor es weiter gehen soll
 sleep_after_powerdown=5m                                        # Zeit die nach dem power down gewartet werden muß bis das NAS wirklich unten ist
                                                                        
-
-
-backup_job=/tmp/backup-$1.lock
-hook_state=$2
+hook_state=$1                                                   # parameter with the current state in which the script is called
 
 #---------------------- Funktionen --------------------------------------------------------------------------------#
 
@@ -40,20 +37,6 @@ format_time() {                                                 # Funktion zur U
 
     printf "%02d:%02d:%02d" "$hours" "$minutes" "$seconds"
 }
-
-#####################################################################
-# Funktion zur Überprüfung auf laufende Tasks via SSH auf dem 
-# proxmox backup server. 
-# Oder anhand der semaphorendatei 
-#
-#####################################################################
-check_tasks_running() {                                         
-    #tasks_running=$(ssh root@$host proxmox-backup-manager task list | grep running | wc -l)
-    tasks_running=$(ls 2>/dev/null -Ubad1 -- /tmp/backup-.lock | wc -l)
-    echo $tasks_running
-}
-
-
 
 ######################################################################
 # Check if we can reach the server by ping and if the backup storage is mounted
@@ -82,14 +65,13 @@ is_server_up () {
 #----------------------- Programmablauf ---------------------------------------------------------------------------#
 
 # just to see the parameter used to call this script
-echo "hookscript: $@ "
+# echo "hookscript: $@ "
 
 # ----------------------- #
 # Job-Init
 # ----------------------- #
 if [ $hook_state == "job-init" ]; then                                # wenn ein Backup-Job rein kommt dann
-    # create an empty file for this job, which will be used semaphore for other backup jobs
-    touch $backup_job
+    # check if the server is up
     is_server_up
     if [[ "$?" != 0 ]]; then
         # server is not up or backup storage is not connected
@@ -138,8 +120,7 @@ fi
 
 if [ $hook_state == "job-end" ]; then                                      # Wenn der Backup-Job erledigt ist
     echo "Backup erledigt, überprüfe auf laufende Tasks"
-    # delete my own job semaphore here
-    rm $backup_job 
+    
     while true; do
         other_backups=$(( $(ps auxww | grep 'task.*vzdump' | grep -v grep | wc -l) -1 ))
 
