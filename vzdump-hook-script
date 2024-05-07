@@ -1,0 +1,213 @@
+#!/bin/bash
+# script um den Backupserver zu starten wenn ein Backup ansteht. Danach wieder Ausschalten
+# dieses Hook-Skript (nano /usr/local/bin/vzdump-hook-script)  zum Backup-Auftrag hinzufügen: nano /etc/pve/jobs.cfg
+# by AME 05/2023
+#    PH 06.05.2024
+#----------------------- Variablen --------------------------------------------------------------------------------#
+
+PATH=/usr/sbin:${PATH}
+#set -x                                                         # SET-X damit die Ausfuehrung protokolliert wird
+storeid=backup                                                  # Variable - um welches Storage handelt es sich
+mac="00:08:9B:CC:DD:02"                                         # MAC Adresse des PBS-Servers
+host="192.168.0.23"                                             # Hostname oder IP des PBS-Servers
+remoteuser="admin"                                                                                      # username @ host / for qnap = admin
+nic=enp1s0                                                      # Netzwerk-Karte über die WOL läuft
+serverTimeout=300                                                                                               # maximum time till we assume that the server will not respond in seconds
+storagetype=dir                                                                                                 # type of the storage "dir" or "" ... 
+sleep_after_wakeup=8m                                           # Zeit die nach dem wakeup des servers gewartet wird bevor es weiter gehen soll
+                                                                                                                                # mein QNAS brauch locker 5 Minuten bevor es nach dem start erreichbar ist
+
+
+backup_job=/tmp/backup-$1.lock					   # lock file which will be created for each running backup task
+hook_state=$2								   # State of the hoock script call 
+
+#---------------------- Funktionen --------------------------------------------------------------------------------#
+
+#####################################################################
+# Funktion um die vergangene Zeit in Sekunden auf das format hh:mm:ss
+#
+# Parameter
+#    $1 = Zeit in Sekunden
+#
+#####################################################################
+format_time() {                                                 # Funktion zur Umrechnung der vergangenen Zeit in ein gängiges Format: hh:mm:ss
+    local input_seconds=$1
+    local hours=$((input_seconds / 3600))
+    local minutes=$(( (input_seconds % 3600) / 60 ))
+    local seconds=$((input_seconds % 60))
+
+    printf "%02d:%02d:%02d" "$hours" "$minutes" "$seconds"
+}
+
+#####################################################################
+# Funktion zur Überprüfung auf laufende Tasks via SSH auf dem 
+# proxmox backup server. 
+# Oder anhand der semaphorendatei 
+#
+#####################################################################
+check_tasks_running() {                                         
+    #tasks_running=$(ssh root@$host proxmox-backup-manager task list | grep running | wc -l)
+    tasks_running=$(ls 2>/dev/null -Ubad1 -- /tmp/backup-.lock | wc -l)
+    echo $tasks_running
+}
+
+
+
+######################################################################
+# Check if we can reach the server by ping and if the backup storage is mounted
+# Returns:
+#               2 = down = server is not reachable by ping
+#       1 = inactive = server is reachable by ping but backup storage is not mounted
+#       0 = active = server is up and storeg is mounted
+######################################################################
+is_server_up () {
+    # cheks if the server is reachable and if the backup storage is mounted
+        if ping -c 1 $host &> /dev/null; then                           # prüfe, ob der Backup-Server schon läuft
+        echo "Der Backupserver läuft bereits"
+                com=$(pvesm status --storage $storeid | tail -1);
+        [[ "$com" =~ ($storeid+ +)($storagetype+ +)(active|disabled) ]];
+                if [ "${BASH_REMATCH[3]}" == "active" ]; then  
+                  return 0
+                else
+                  return 1
+                fi
+    else
+                return 2
+        fi
+}
+
+
+#----------------------- Programmablauf ---------------------------------------------------------------------------#
+
+# just to see the parameter used to call this script
+echo "hookscript: $@ "
+
+# ----------------------- #
+# Job-Init
+# ----------------------- #
+if [ $hook_state == "job-init" ]; then                                # wenn ein Backup-Job rein kommt dann
+    # create an empty file for this job, which will be used semaphore for other backup jobs
+    touch $backup_job
+    is_server_up
+    if [[ "$?" != 0 ]]; then
+        # server is not up or backup storage is not connected
+        # start the server by WOL
+        /usr/sbin/etherwake -i $nic $mac  
+        # wait till the server will be up, for my qnas it needs 8 minutes
+        sleep $sleep_after_wakeup
+        # enable the storage, as the server shall be up here
+        pvesm set $storeid --disable 0
+        # timestamp at the begin of the loop for checking timeout time
+        timeout_wakeup_start=`date +%s`                         # timestamp at the start of the procedure which shall bring the server up
+        until [[ "$act" == "true" ]]; do       
+            # loop to bring the server up
+            # check if server is up and storage is available
+            is_server_up
+            if [ "$?" == 0 ]; then
+                echo "Backup-Server ist jetzt erreichbar"
+                # set "act" to TRUE to leave the loop later
+                act=true
+                exit 0
+            fi
+            # timestamp in seconds
+            timeout_wakeup_end=`date +%s`
+            # calculate the run time we have between starting the loop and now
+            runtime=$((timeout_wakeup_end-timeout_wakeup_start))
+            if (( runtime > serverTimeout )); then                     # wenn der Server nach serverTimeout sec. nicht erreichbar ist exit 1 e>
+                echo "ERROR Backup-Server ist nicht erreichbar"
+                sleep 1s
+                pvesm set $storeid --disable 1 
+                exit 1
+            fi
+            # do not loop so often, wait 10s here
+            sleep 10s   
+        done
+        # if we are here, ther server shall be up and the storage connected
+    else
+        # server is up and storage is connected
+        echo "Der Backupserver läuft bereits"
+        exit 0
+    fi
+fi
+
+# ----------------------- #
+# Job-End
+# ----------------------- #
+
+if [ $hook_state == "job-end" ]; then                                      # Wenn der Backup-Job erledigt ist
+    echo "Backup erledigt, überprüfe auf laufende Tasks"
+    # delete my own job semaphore here
+    rm $backup_job 
+    while true; do
+    # check the amount of open files which fit to this naming
+    tasks_running=$(check_tasks_running)
+   
+        if [ $tasks_running -gt 0 ]; then                           # Überprüfung auf laufende Tasks nach Backup auf Backupserver 
+
+            start_time=$(date +%s)                                  # setze Startzeit
+            notification_sent=false                                 # Variable für Meldung setzen
+            scanned_tasks=0
+
+            while [ $tasks_running -gt 0 ]; do                      # durchlaufe die Schleife solange, bis alle Tasks beendet sind
+
+                sleep 60s
+                tasks_running=$(check_tasks_running)
+                elapsed_time=$(( $(date +%s) - $start_time ))       # Berechnung der Zeit zum Durchlaufen der Tasks
+
+                if [ "$notification_sent" == false ]; then          # gebe diese Meldung aus, um auf noch laufende Tasks hinzuweisen
+
+                    if [ $tasks_running -gt 1 ]; then
+                        echo "Es laufen noch $tasks_running Tasks. Warte auf Abschluss der Tasks..."
+                    else
+                        echo "Es läuft noch $tasks_running Task. Warte auf Abschluss des Tasks..."
+                    fi
+                    notification_sent=true
+                    scanned_tasks=$(tasks_running)
+                else
+
+                    if [ $tasks_running -gt $scanned_tasks ]; then  # wenn sich die Anzahl der Tasks ändert
+                        notification_sent=false                     # setze die Variable wieder auf 'false'
+                    fi
+                fi
+            done
+
+            formatted_time=$(format_time "$elapsed_time")           # Aufrufen der Umrechnungsfunktion in hh:mm:ss
+            echo "Alle Tasks wurden abgeschlossen. Gesamtdauer: $formatted_time"    # nach abschluss der Schleife, Ausgabe der Gesamtdauer
+        else
+
+            other_backups=$(( $(ps auxww | grep 'task.*vzdump' | grep -v grep | wc -l) -1 ))
+
+            if [ $other_backups -lt 0 ]; then
+                $other_backups=0
+            fi
+
+            if [ $other_backups -ge 1 ]; then                       # sind unter den Tasks noch andere Backupjobs, beende das Skript
+
+                if [ $other_backups -gt 1 ]; then
+
+                    echo "Es laufen noch $other_backups Backup-Jobs. Beende den aktuellen Job."
+                else
+                    echo "Es läuft noch $other_backups Backup-Job. Beende den aktuellen Job."
+                fi
+                exit 0
+            fi
+
+
+            echo "Keine laufenden Tasks gefunden. Warte 20 Sekunden, dann wird der Backup-Server gestoppt."
+            sleep 20s
+            pvesm set $storeid --disable 1                          # deaktiviere den Speicher
+            ssh $remoteuser@$host -p 22 /sbin/poweroff < /dev/null &                # Backupserver wird heruntergefahren
+            sleep 20s
+
+            if ping -c 1 $host &> /dev/null; then                   # wenn der Server noch erreichbar ist
+                echo "Fehler: Der Backup-Server konnte nicht heruntergefahren werden."
+                exit 1                                              # gibt`s einen Fehler im Log
+            else
+                echo "Der Backup-Server wurde erfolgreich heruntergefahren."
+            fi    
+        fi    
+    done
+fi    
+# ----------------------- #
+
+exit 0
