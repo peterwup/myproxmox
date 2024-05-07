@@ -6,7 +6,7 @@
 #----------------------- Variablen --------------------------------------------------------------------------------#
 
 PATH=/usr/sbin:${PATH}
-#set -x                                                         # SET-X damit die Ausfuehrung protokolliert wird
+set -x                                                         # SET-X damit die Ausfuehrung protokolliert wird
 storeid=backup                                                  # Variable - um welches Storage handelt es sich
 mac="00:08:9B:CC:DD:02"                                         # MAC Adresse des PBS-Servers
 host="192.168.0.23"                                             # Hostname oder IP des PBS-Servers
@@ -15,11 +15,12 @@ nic=enp1s0                                                      # Netzwerk-Karte
 serverTimeout=300                                                                                               # maximum time till we assume that the server will not respond in seconds
 storagetype=dir                                                                                                 # type of the storage "dir" or "" ... 
 sleep_after_wakeup=8m                                           # Zeit die nach dem wakeup des servers gewartet wird bevor es weiter gehen soll
-                                                                                                                                # mein QNAS brauch locker 5 Minuten bevor es nach dem start erreichbar ist
+sleep_after_powerdown=5m                                        # Zeit die nach dem power down gewartet werden muß bis das NAS wirklich unten ist
+                                                                       
 
 
-backup_job=/tmp/backup-$1.lock					   # lock file which will be created for each running backup task
-hook_state=$2								   # State of the hoock script call 
+backup_job=/tmp/backup-$1.lock
+hook_state=$2
 
 #---------------------- Funktionen --------------------------------------------------------------------------------#
 
@@ -139,73 +140,38 @@ if [ $hook_state == "job-end" ]; then                                      # Wen
     # delete my own job semaphore here
     rm $backup_job 
     while true; do
-    # check the amount of open files which fit to this naming
-    tasks_running=$(check_tasks_running)
-   
-        if [ $tasks_running -gt 0 ]; then                           # Überprüfung auf laufende Tasks nach Backup auf Backupserver 
+        other_backups=$(( $(ps auxww | grep 'task.*vzdump' | grep -v grep | wc -l) -1 ))
 
-            start_time=$(date +%s)                                  # setze Startzeit
-            notification_sent=false                                 # Variable für Meldung setzen
-            scanned_tasks=0
+        if [ $other_backups -lt 0 ]; then
+            $other_backups=0
+        fi
 
-            while [ $tasks_running -gt 0 ]; do                      # durchlaufe die Schleife solange, bis alle Tasks beendet sind
+        if [ $other_backups -ge 1 ]; then                       # sind unter den Tasks noch andere Backupjobs, beende das Skript
 
-                sleep 60s
-                tasks_running=$(check_tasks_running)
-                elapsed_time=$(( $(date +%s) - $start_time ))       # Berechnung der Zeit zum Durchlaufen der Tasks
+            if [ $other_backups -gt 1 ]; then
 
-                if [ "$notification_sent" == false ]; then          # gebe diese Meldung aus, um auf noch laufende Tasks hinzuweisen
-
-                    if [ $tasks_running -gt 1 ]; then
-                        echo "Es laufen noch $tasks_running Tasks. Warte auf Abschluss der Tasks..."
-                    else
-                        echo "Es läuft noch $tasks_running Task. Warte auf Abschluss des Tasks..."
-                    fi
-                    notification_sent=true
-                    scanned_tasks=$(tasks_running)
-                else
-
-                    if [ $tasks_running -gt $scanned_tasks ]; then  # wenn sich die Anzahl der Tasks ändert
-                        notification_sent=false                     # setze die Variable wieder auf 'false'
-                    fi
-                fi
-            done
-
-            formatted_time=$(format_time "$elapsed_time")           # Aufrufen der Umrechnungsfunktion in hh:mm:ss
-            echo "Alle Tasks wurden abgeschlossen. Gesamtdauer: $formatted_time"    # nach abschluss der Schleife, Ausgabe der Gesamtdauer
-        else
-
-            other_backups=$(( $(ps auxww | grep 'task.*vzdump' | grep -v grep | wc -l) -1 ))
-
-            if [ $other_backups -lt 0 ]; then
-                $other_backups=0
-            fi
-
-            if [ $other_backups -ge 1 ]; then                       # sind unter den Tasks noch andere Backupjobs, beende das Skript
-
-                if [ $other_backups -gt 1 ]; then
-
-                    echo "Es laufen noch $other_backups Backup-Jobs. Beende den aktuellen Job."
-                else
-                    echo "Es läuft noch $other_backups Backup-Job. Beende den aktuellen Job."
-                fi
-                exit 0
-            fi
-
-
-            echo "Keine laufenden Tasks gefunden. Warte 20 Sekunden, dann wird der Backup-Server gestoppt."
-            sleep 20s
-            pvesm set $storeid --disable 1                          # deaktiviere den Speicher
-            ssh $remoteuser@$host -p 22 /sbin/poweroff < /dev/null &                # Backupserver wird heruntergefahren
-            sleep 20s
-
-            if ping -c 1 $host &> /dev/null; then                   # wenn der Server noch erreichbar ist
-                echo "Fehler: Der Backup-Server konnte nicht heruntergefahren werden."
-                exit 1                                              # gibt`s einen Fehler im Log
+                echo "Es laufen noch $other_backups Backup-Jobs. Beende den aktuellen Job."
             else
-                echo "Der Backup-Server wurde erfolgreich heruntergefahren."
-            fi    
+                echo "Es läuft noch $other_backups Backup-Job. Beende den aktuellen Job."
+            fi
+            exit 0
+        fi
+
+
+        echo "Keine laufenden Tasks gefunden. Warte 20 Sekunden, dann wird der Backup-Server gestoppt."
+        sleep 20s
+        pvesm set $storeid --disable 1                          # deaktiviere den Speicher
+        ssh $remoteuser@$host -p 22 /sbin/poweroff < /dev/null &                # Backupserver wird heruntergefahren
+        sleep $sleep_after_powerdown
+
+        if ping -c 1 $host &> /dev/null; then                   # wenn der Server noch erreichbar ist
+            echo "Fehler: Der Backup-Server konnte nicht heruntergefahren werden."
+            exit 1                                              # gibt`s einen Fehler im Log
+        else
+            echo "Der Backup-Server wurde erfolgreich heruntergefahren."
+            exit 0
         fi    
+          
     done
 fi    
 # ----------------------- #
