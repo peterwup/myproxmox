@@ -12,7 +12,7 @@ storeid=backup                                                  # Variable - um 
 mac="00:08:9B:CC:DD:02"                                         # MAC Adresse des PBS-Servers
 host="192.168.0.23"                                             # Hostname oder IP des PBS-Servers
 remoteuser="admin"                                                                                      # username @ host / for qnap = admin
-nic=enp1s0                                                      # Netzwerk-Karte über die WOL läuft
+nic=enp2s0                                                      # Netzwerk-Karte über die WOL läuft
 serverTimeout=300                                                                                               # maximum time till we assume that the server will not respond in seconds
 storagetype=dir                                                                                                 # type of the storage "dir" or "" ... 
 sleep_after_wakeup=8m                                           # Zeit die nach dem wakeup des servers gewartet wird bevor es weiter gehen soll
