@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-wget https://raw.githubusercontent.com/peterwup/myproxmox/main/start-PBS.sh
-wget https://raw.githubusercontent.com/peterwup/myproxmox/main/stop-PBS.sh
-wget https://raw.githubusercontent.com/peterwup/myproxmox/main/vzdump-hook-script
-wget https://raw.githubusercontent.com/peterwup/myproxmox/main/prox_config_backup.sh
-wget https://raw.githubusercontent.com/peterwup/myproxmox/main/cleanup.sh
+wget https://raw.githubusercontent.com/peterwup/myproxmox/main/start-PBS.sh  -O ~/start-PBS.sh --backups=0
+wget https://raw.githubusercontent.com/peterwup/myproxmox/main/stop-PBS.sh -O ~/stop-PBS.sh --backups=0
+wget https://raw.githubusercontent.com/peterwup/myproxmox/main/vzdump-hook-script -O /usr/local/bin/vzdump-hook-script --backups=0
+wget https://raw.githubusercontent.com/peterwup/myproxmox/main/prox_config_backup.sh -O ~/prox_config_backup.sh --backups=0
+wget https://raw.githubusercontent.com/peterwup/myproxmox/main/cleanup.sh -O ~/cleanup.sh --backups=0
 #
-mv vzdump-hook-script /usr/local/bin/vzdump-hook-script
+# mv vzdump-hook-script /usr/local/bin/vzdump-hook-script 
 chmod a+x /usr/local/bin/vzdump-hook-script
 #
 chmod a+x stop-PBS.sh
