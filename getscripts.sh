@@ -11,3 +11,5 @@ chmod a+x /usr/local/bin/vzdump-hook-script
 #
 chmod a+x stop-PBS.sh
 chmod a+x start-PBS.sh
+chmod a+x prox_config_backup.sh
+chmod a+x cleanup.sh
