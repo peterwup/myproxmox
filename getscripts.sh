@@ -1,5 +1,5 @@
 #!/bin/bash
-# wget https://raw.githubusercontent.com/peterwup/myproxmox/main/getscripts.sh --backups=0 ~/getscripts.sh
+# wget https://raw.githubusercontent.com/peterwup/myproxmox/main/getscripts.sh --backups=0 -O ~/getscripts.sh
 # script to load several other scripts from github
 wget https://raw.githubusercontent.com/peterwup/myproxmox/main/start-PBS.sh  -O ~/start-PBS.sh --backups=0
 wget https://raw.githubusercontent.com/peterwup/myproxmox/main/stop-PBS.sh -O ~/stop-PBS.sh --backups=0
