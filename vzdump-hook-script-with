@@ -19,6 +19,7 @@ serverTimeout=300                                               # maximum time t
 storagetype=cifs                                                # type of the storage "dir" or "cifs" ... 
 sleep_after_wakeup=8m                                           # Zeit die nach dem wakeup des servers gewartet wird bevor es weiter gehen soll
 sleep_after_powerdown=5m                                        # Zeit die nach dem power down gewartet werden muß bis das NAS wirklich unten ist
+serverDownTimeout=120                                           # max. time we wait after sleep_after_powerdown for the server
                                                                        
 hook_state=$1                                                   # parameter with the current state in which the script is called
 proxmox_config_backup=/root/prox_config_backup.sh               # make a backup pf the proxmox configuration
@@ -64,6 +65,34 @@ is_server_up () {
         fi
 }
 
+######################################################################
+#
+######################################################################
+bring_server_down () {
+    
+    pvesm set $storeid --disable 1                                   # deaktiviere den Speicher
+    ssh $remoteuser@$host -p 22 /sbin/poweroff < /dev/null &         # Backupserver wird heruntergefahren
+    sleep $sleep_after_powerdown                                     # give the server the time to stop
+
+    timeout_server_down_start=`date +%s` 
+    until [[ "$xact" == "true" ]]; do     
+      if ping -c 1 $host &> /dev/null; then      
+        # server still online
+        xact=false
+      else
+        xact=true
+        return 0                                              
+      fi
+      
+      timeout_server_down_end=`date +%s`
+      runtime=$((timeout_server_down_end-timeout_server_down_start))
+      if (( runtime > serverDownTimeout )); then
+        echo "Fehler: Der Backup-Server konnte nicht heruntegefahren werden."
+        return 1
+      fi    
+      sleep 10s
+    done    
+}
 
 #----------------------- Programmablauf ---------------------------------------------------------------------------#
 
@@ -147,17 +176,14 @@ if [ $hook_state == "job-end" ]; then                                      # Wen
 
         echo "Keine laufenden Tasks gefunden. Warte 20 Sekunden, dann wird der Backup-Server gestoppt."
         sleep 20s
-        pvesm set $storeid --disable 1                          # deaktiviere den Speicher
-        ssh $remoteuser@$host -p 22 /sbin/poweroff < /dev/null &                # Backupserver wird heruntergefahren
-        sleep $sleep_after_powerdown
-
-        if ping -c 1 $host &> /dev/null; then                   # wenn der Server noch erreichbar ist
-            echo "Fehler: Der Backup-Server konnte nicht heruntergefahren werden."
-            exit 1                                              # gibt`s einen Fehler im Log
+        bring_server_down
+        if [[ "$?" != 0 ]]; then
+          echo "Fehler: Der Backup-Server konnte nicht heruntergefahren werden."
+          exit 1                                              # gibt`s einen Fehler im Log
         else
-            echo "Der Backup-Server wurde erfolgreich heruntergefahren."
+          echo "Der Backup-Server wurde erfolgreich heruntergefahren."
             exit 0
-        fi    
+        fi         
           
     done
 fi    
