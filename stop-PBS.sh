@@ -25,6 +25,8 @@ bring_server_down () {
     timeout_server_down_start=`date +%s` 
     until [[ "$xact" == "true" ]]; do     
       if ping -c 1 $host &> /dev/null; then      
+        # server still up
+      else
         xact=true
         return 0                                              
       fi
