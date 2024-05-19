@@ -4,13 +4,26 @@
 #----------------------- Variablen --------------------------------------------------------------------------------#
 # SET-X damit die Ausfuehrung protokolliert wird
 # set -x
-storeid=backup                                                  # Variable - um welches Storage handelt es sich
-mac="00:08:9B:CC:DD:02"                                         # MAC Adresse des PBS-Servers
-host="192.168.0.23"                                             # Hostname oder IP des PBS-Servers
-remoteuser="admin"                                              # username @ host / for qnap = admin
-nic=enp2s0                                                      # Netzwerk-Karte über die WOL läuft
-sleep_after_powerdown=5m                                        # Zeit die nach dem power down gewartet werden muß bis das NAS wirklich unten ist
-serverDownTimeout=120                                           # max. time we wait after sleep_after_powerdown for the server
+# Data for QNAS  / this NAS is very slow. It need minimum 5 minutes after WOL till it is available and 4 minutes after power down till it is not longer reachable
+#mac="00:08:9B:CC:DD:02"                                         # MAC Adresse  of the backup server
+#host="192.168.0.23"                                             # Hostname oder IP of the backup server
+#remoteuser="admin"                                              # username @ host / for qnap = admin
+#sleep_after_wakeup=8m                                           # Sleep time after a Wake On LAN which is typically needed. You have to check for your devide
+#sleep_after_powerdown=5m                                        # Sleep time after a shut down which is typically needed you have to check for your device
+
+
+# data for openmediavault NAS
+mac="4C:52:62:1D:0E:DE"
+host="192.168.100.240"
+remoteuser="root"                                               # username @ host / for qnap = admin
+sleep_after_wakeup=1m                                           # Sleep time after a Wake On LAN which is typically needed. You have to check for your devide
+sleep_after_powerdown=1m                                        # Sleep time after a shut down which is typically needed you have to check for your device
+
+# general data 
+nic=enp2s0                                                      # network interface for WOL
+TimeoutTimes=120                                                # time out time in [s] for different things
+storeid=backup                                                  # Identifier of the storage which shall be used for the backup
+storagetype=cifs                                                # type of the storage "dir" or "cifs" ... 
 
 
 ######################################################################
@@ -26,6 +39,7 @@ bring_server_down () {
     until [[ "$xact" == "true" ]]; do     
       if ping -c 1 $host &> /dev/null; then      
         # server still up
+        echo "server still up"
       else
         xact=true
         return 0                                              
