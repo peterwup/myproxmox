@@ -4,14 +4,24 @@
 #----------------------- Variablen --------------------------------------------------------------------------------#
 # SET-X damit die Ausfuehrung protokolliert wird
 #set -x
-storeid=backup                                                  # Variable - um welches Storage handelt es sich
-mac="00:08:9B:CC:DD:02"                                         # MAC Adresse des PBS-Servers
-host="192.168.0.23"                                             # Hostname oder IP des PBS-Servers
-remoteuser="admin"                                              # username @ host / for qnap = admin
+# Data for QNAS
+#mac="00:08:9B:CC:DD:02"                                         # MAC Adresse  of the backup server
+#host="192.168.0.23"                                             # Hostname oder IP of the backup server
+#remoteuser="admin"                                              # username @ host / for qnap = admin
+#sleep_after_wakeup=8m                                           # Sleep time after a Wake On LAN which is typically needed. You have to check for your devide
+#sleep_after_powerdown=5m                                        # Sleep time after a shut down which is typically needed you have to check for your device
+# data for openmediavault NAS
+mac="4C:52:62:1D:0E:DE"
+host="192.168.100.240"
+remoteuser="root"                                               # username @ host / for qnap = admin
+sleep_after_wakeup=1s                                           # Sleep time after a Wake On LAN which is typically needed. You have to check for your devide
+sleep_after_powerdown=1s                                        # Sleep time after a shut down which is typically needed you have to check for your device
+
 nic=enp2s0                                                      # Netzwerk-Karte über die WOL läuft
 serverTimeout=30                                                # maximum time till we assume that the server will not respond in seconds
+storeid=backup                                                  # Variable - um welches Storage handelt es sich
 storagetype=cifs                                                # type of the storage "dir" or "cifs" ... 
-sleep_after_wakeup=8m                                           # Zeit die nach dem wakeup des servers gewartet wird bevor es weiter gehen soll
+
                                                                 # mein QNAS brauch locker 5 Minuten bevor es nach dem start erreichbar ist
 
 #----------------------- Programmablauf ---------------------------------------------------------------------------#
@@ -40,17 +50,19 @@ is_server_up () {
     fi
 }
 
-#################################
+#----------------------- Programmablauf ---------------------------------------------------------------------------#
 
+#################################
 is_server_up
 if [[ "$?" != 0 ]]; then
     # start the server by WOL
-    /usr/sbin/etherwake -i $nic $mac     
+    /usr/sbin/etherwake -i $nic $mac  
+    start_timemeasuring=`date +%s` 
     # wait till the server will be up
     sleep $sleep_after_wakeup
     pvesm set $storeid --disable 0          # der Storage wird enabled
 
-        timeout_wakeup_start=`date +%s`                 # Startzeit die für das timeout benötigt wird. 
+    timeout_wakeup_start=`date +%s`                 # Startzeit die für das timeout benötigt wird. 
         until [[ "$act" == "true" ]]; do                                     # arbeite die loop-schleife ab bis die variable "ack" wahr ist
                 is_server_up
                 if [ "$?" == 0 ]; then
