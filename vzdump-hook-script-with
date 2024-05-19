@@ -1,68 +1,70 @@
 #!/bin/bash
-# nano /usr/local/bin/vzdump-hook-script-with
-# script um den Backupserver zu starten wenn ein Backup ansteht. Danach wieder Ausschalten
-#  soll identisch zum vzdump-hook-script sein aber noch zum Schluss den backup der proxmox configuration selbst aufrufen
-# dieses Hook-Skript (nano /usr/local/bin/vzdump-hook-script)  zum Backup-Auftrag hinzufügen: nano /etc/pve/jobs.cfg
+# Script to start/ stop backup server
+# 
+# nano /usr/local/bin/vzdump-hook-script
+#
+# based on the script of dremeier and Kochi1316
+# https://forum.proxmox.com/threads/proxmox-backup-server-pbs-automatisch-via-wol-starten-und-stoppen.127266/
+# 
+# the used program etherwake was not installed on my PVE: apt install etherwake
+#
 # by AME 05/2023
-#    PH 06.05.2024
-#   
+#    PH  05/2024
 #----------------------- Variablen --------------------------------------------------------------------------------#
+# SET-X damit die Ausfuehrung protokolliert wird
+set -x
+#
 
-PATH=/usr/sbin:${PATH}
-# set -x                                                         # SET-X damit die Ausfuehrung protokolliert wird
-storeid=backup                                                  # Variable - um welches Storage handelt es sich
-mac="00:08:9B:CC:DD:02"                                         # MAC Adresse des PBS-Servers
-host="192.168.0.23"                                             # Hostname oder IP des PBS-Servers
-remoteuser="admin"                                              # username @ host / for qnap = admin
-nic=enp2s0                                                      # Netzwerk-Karte über die WOL läuft
-serverTimeout=300                                               # maximum time till we assume that the server will not respond in seconds
+# Data for QNAS  / this NAS is very slow. It need minimum 5 minutes after WOL till it is available and 4 minutes after power down till it is not longer reachable
+#mac="00:08:9B:CC:DD:02"                                         # MAC Adresse  of the backup server
+#host="192.168.0.23"                                             # Hostname oder IP of the backup server
+#remoteuser="admin"                                              # username @ host / for qnap = admin
+#sleep_after_wakeup=8m                                           # Sleep time after a Wake On LAN which is typically needed. You have to check for your devide
+#sleep_after_powerdown=5m                                        # Sleep time after a shut down which is typically needed you have to check for your device
+
+
+# data for openmediavault NAS
+mac="4C:52:62:1D:0E:DE"
+host="192.168.100.240"
+remoteuser="root"                                               # username @ host / for qnap = admin
+sleep_after_wakeup=1m                                           # Sleep time after a Wake On LAN which is typically needed. You have to check for your devide
+sleep_after_powerdown=1m                                        # Sleep time after a shut down which is typically needed you have to check for your device
+
+# general data 
+nic=enp2s0                                                      # network interface for WOL
+TimeoutTimes=120                                                # time out time in [s] for different things
+storeid=backup                                                  # Identifier of the storage which shall be used for the backup
 storagetype=cifs                                                # type of the storage "dir" or "cifs" ... 
-sleep_after_wakeup=8m                                           # Zeit die nach dem wakeup des servers gewartet wird bevor es weiter gehen soll
-sleep_after_powerdown=5m                                        # Zeit die nach dem power down gewartet werden muß bis das NAS wirklich unten ist
-serverDownTimeout=120                                           # max. time we wait after sleep_after_powerdown for the server
-                                                                       
-hook_state=$1                                                   # parameter with the current state in which the script is called
 proxmox_config_backup=/root/prox_config_backup.sh               # make a backup pf the proxmox configuration
 
-#---------------------- Funktionen --------------------------------------------------------------------------------#
+#----------------------- Subroutines ---------------------------------------------------------------------------#
 
-#####################################################################
-# Funktion um die vergangene Zeit in Sekunden auf das format hh:mm:ss
+
+##############################################################################
 #
-# Parameter
-#    $1 = Zeit in Sekunden
-#
-#####################################################################
-format_time() {                                                 # Funktion zur Umrechnung der vergangenen Zeit in ein gängiges Format: hh:mm:ss
-    local input_seconds=$1
-    local hours=$((input_seconds / 3600))
-    local minutes=$(( (input_seconds % 3600) / 60 ))
-    local seconds=$((input_seconds % 60))
-
-    printf "%02d:%02d:%02d" "$hours" "$minutes" "$seconds"
-}
-
-######################################################################
-# Check if we can reach the server by ping and if the backup storage is mounted
+# Check if we can reach the server by ping 
+# If this is the case the next check will be if the storage is available
 # Returns:
-#               2 = down = server is not reachable by ping
+#       2 = down = server is not reachable by ping
 #       1 = inactive = server is reachable by ping but backup storage is not mounted
 #       0 = active = server is up and storeg is mounted
-######################################################################
 is_server_up () {
-    # cheks if the server is reachable and if the backup storage is mounted
-        if ping -c 1 $host &> /dev/null; then                           # prüfe, ob der Backup-Server schon läuft
-        echo "Der Backupserver läuft bereits"
-                com=$(pvesm status --storage $storeid | tail -1);
+    if ping -c 1 $host &> /dev/null; then      # send ping to the server and check if server is available
+        echo "Backup server is available"
+        # check if storage is up
+        com=$(pvesm status --storage $storeid | tail -1); 
         [[ "$com" =~ ($storeid+ +)($storagetype+ +)(active|disabled) ]];
-                if [ "${BASH_REMATCH[3]}" == "active" ]; then  
-                  return 0
-                else
-                  return 1
-                fi
-    else
-                return 2
+        if [ "${BASH_REMATCH[3]}" == "active" ]; then  
+            # server is up and storage is active
+            return 0
+        else
+            # server is up, but starage is not available
+            return 1
         fi
+    else
+        # server is down and storage is not available
+        return 2
+    fi
 }
 
 ######################################################################
@@ -74,19 +76,18 @@ bring_server_down () {
     ssh $remoteuser@$host -p 22 /sbin/poweroff < /dev/null &         # Backupserver wird heruntergefahren
     sleep $sleep_after_powerdown                                     # give the server the time to stop
 
-    timeout_server_down_start=`date +%s` 
+    start_timemeasuring=$(date +%s) 
     until [[ "$xact" == "true" ]]; do     
       if ping -c 1 $host &> /dev/null; then      
-        # server still online
-        xact=false
+        # server still up
+        echo "server still up"
       else
         xact=true
         return 0                                              
       fi
       
-      timeout_server_down_end=`date +%s`
-      runtime=$((timeout_server_down_end-timeout_server_down_start))
-      if (( runtime > serverDownTimeout )); then
+      runtime=$(($(date +%s)-start_timemeasuring))
+      if [ $runtime -gt $TimeoutTimes ]; then 
         echo "Fehler: Der Backup-Server konnte nicht heruntegefahren werden."
         return 1
       fi    
@@ -94,11 +95,10 @@ bring_server_down () {
     done    
 }
 
-#----------------------- Programmablauf ---------------------------------------------------------------------------#
+#----------------------- Main program  ---------------------------------------------------------------------------#
 
-# just to see the parameter used to call this script
-# echo "hookscript: $@ "
-
+hook_state=$1                                                   # parameter with the current state in which the script is called
+    
 # ----------------------- #
 # Job-Init
 # ----------------------- #
@@ -114,7 +114,7 @@ if [ $hook_state == "job-init" ]; then                                # wenn ein
         # enable the storage, as the server shall be up here
         pvesm set $storeid --disable 0
         # timestamp at the begin of the loop for checking timeout time
-        timeout_wakeup_start=`date +%s`                         # timestamp at the start of the procedure which shall bring the server up
+        start_timemeasuring=$(date +%s)                       # timestamp at the start of the procedure which shall bring the server up
         until [[ "$act" == "true" ]]; do       
             # loop to bring the server up
             # check if server is up and storage is available
@@ -124,12 +124,10 @@ if [ $hook_state == "job-init" ]; then                                # wenn ein
                 # set "act" to TRUE to leave the loop later
                 act=true
                 exit 0
-            fi
-            # timestamp in seconds
-            timeout_wakeup_end=`date +%s`
+            fi            
             # calculate the run time we have between starting the loop and now
-            runtime=$((timeout_wakeup_end-timeout_wakeup_start))
-            if (( runtime > serverTimeout )); then                     # wenn der Server nach serverTimeout sec. nicht erreichbar ist exit 1 e>
+            runtime=$(($(date +%s)-start_timemeasuring))
+            if [ $runtime -gt $TimeoutTimes ]; then                       # wenn der Server nach serverTimeout sec. nicht erreichbar ist exit 1 e>
                 echo "ERROR Backup-Server ist nicht erreichbar"
                 sleep 1s
                 pvesm set $storeid --disable 1 
@@ -153,13 +151,14 @@ fi
 if [ $hook_state == "job-end" ]; then                                      # Wenn der Backup-Job erledigt ist
     echo start backup of proxmox config
     $proxmox_config_backup
+    
     echo "Backup erledigt, überprüfe auf laufende Tasks"
     
     while true; do
         other_backups=$(( $(ps auxww | grep 'task.*vzdump' | grep -v grep | wc -l) -1 ))
 
         if [ $other_backups -lt 0 ]; then
-            $other_backups=0
+            other_backups=0
         fi
 
         if [ $other_backups -ge 1 ]; then                       # sind unter den Tasks noch andere Backupjobs, beende das Skript
@@ -183,8 +182,7 @@ if [ $hook_state == "job-end" ]; then                                      # Wen
         else
           echo "Der Backup-Server wurde erfolgreich heruntergefahren."
             exit 0
-        fi         
-          
+        fi                    
     done
 fi    
 # ----------------------- #
