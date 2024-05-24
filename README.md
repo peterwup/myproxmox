@@ -42,7 +42,7 @@ A set of scripts for PROXMOX
   * at **job-end** where all backups are ready
   * at this point the script will be disable the backup volumn and bring down the NAS
  * starting the NAS will be doen by wake on lan (WOL)
- * stopping the NAS will be done by a ssh session 
+ * stopping the NAS will be done by a ssh session where "poweroff" is called 
 
 [vzdump-hook-script-with](https://github.com/peterwup/myproxmox/blob/main/vzdump-hook-script-with)
 * same as above, but in addition at **job-end** prox_config_backup.sh is called
