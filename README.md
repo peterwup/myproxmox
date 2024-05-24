@@ -34,7 +34,7 @@ A set of scripts for PROXMOX
 * based on the script https://forum.proxmox.com/threads/proxmox-backup-server-pbs-automatisch-via-wol-starten-und-stoppen.127266/
 * hook script which is called from Proxmox while backup
 * this script will get active
-** job-init
+** at *job-init* so at the begin of the backup process before the backup has startet 
 
 []()
 
