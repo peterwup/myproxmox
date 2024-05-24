@@ -21,9 +21,13 @@ A set of scripts for PROXMOX
 * start a remote NAS
 * wait till it is up
 * enable the backup volumn
-* Can be used to do this by hand or make first tests
+* can be use to do it manualy or for test purpose
  
 [stop-PBS.sh](https://github.com/peterwup/myproxmox/blob/main/stop-PBS.sh)
-
+* based on the script https://forum.proxmox.com/threads/proxmox-backup-server-pbs-automatisch-via-wol-starten-und-stoppen.127266/
+* disable the backup volumn
+* stop the NAS
+* wait till the NAS is down.
+* can be use to do it manualy or for test purpose
 
 []()
