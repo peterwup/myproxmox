@@ -34,12 +34,15 @@ A set of scripts for PROXMOX
 * based on the script https://forum.proxmox.com/threads/proxmox-backup-server-pbs-automatisch-via-wol-starten-und-stoppen.127266/
 * hook script which is called from Proxmox while backup
 * this script will get active
-** at **job-init** so at the begin of the backup process before the backup has startet
-  ** at this point the backup will be prepared
-  ** NAS will be started
-  ** backup volumn will be anebled
-  ** script wait till this is ready or will come to a timeout and stop the complete backup
+  * at **job-init** so at the begin of the backup process before the backup has startet
+  * at this point the backup will be prepared
+  * NAS will be started
+  * backup volumn will be enabled
+  * script wait till this is ready or will come to a timeout and stop the complete backup
+  * at **job-end** where all backups are ready
+  * at this point the script will be disable the backup volumn and bring down the NAS
+ * starting the NAS will be doen by wake on lan (WOL)
+ * stopping the NAS will be done by a ssh session 
 
-[]()
-
-[]()
+[vzdump-hook-script-with](https://github.com/peterwup/myproxmox/blob/main/vzdump-hook-script-with)
+* same as above, but in addition at **job-end** prox_config_backup.sh is called
