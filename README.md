@@ -30,7 +30,11 @@ A set of scripts for PROXMOX
 * wait till the NAS is down.
 * can be use to do it manualy or for test purpose
 
-[](vzdump-hook-script)
+[vzdump-hook-script](https://github.com/peterwup/myproxmox/blob/main/vzdump-hook-script)
+* based on the script https://forum.proxmox.com/threads/proxmox-backup-server-pbs-automatisch-via-wol-starten-und-stoppen.127266/
+* hook script which is called from Proxmox while backup
+* this script will get active
+** job-init
 
 []()
 
