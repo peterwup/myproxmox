@@ -1,1 +1,3 @@
-Set of scripts to backup proxmox to a NAS ...
+A set of scripts for PROXMOX
+
+https://github.com/peterwup/myproxmox/blob/main/cleanup.sh
