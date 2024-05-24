@@ -7,6 +7,10 @@ A set of scripts for PROXMOX
 * I just use it in simulation mode and check what it would do and do it partly by hand
 
 [getscript.sh](https://github.com/peterwup/myproxmox/blob/main/getscripts.sh)
-*
+* script to download all the scripts from github to proxmox
+* push them at the right position
+* set the "executable" flags to them for all users
+
+
 
 
