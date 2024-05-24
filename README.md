@@ -30,4 +30,8 @@ A set of scripts for PROXMOX
 * wait till the NAS is down.
 * can be use to do it manualy or for test purpose
 
+[](vzdump-hook-script)
+
+[]()
+
 []()
