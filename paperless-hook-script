@@ -1,4 +1,4 @@
-
+#!/bin/bash
 #----------------------- Variablen --------------------------------------------------------------------------------#
 # SET-X damit die Ausfuehrung protokolliert wird
 set -x
