@@ -1,13 +1,13 @@
+
 #----------------------- Variablen --------------------------------------------------------------------------------#
 # SET-X damit die Ausfuehrung protokolliert wird
 set -x
 
 
 #-----------------------------------------------------------------------------------------------------------------#
-hook_state=$1                                                   # parameter with the current state in which the script is called
 
 # mount the SMB share of tkfileserevr for paperless 
-if [ $hook_state == "pre-start" ]; then     
+if [ $1 == "pre-start" ]; then     
   /usr/bin/mount /mnt/paperless/
 fi
 
