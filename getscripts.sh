@@ -8,12 +8,12 @@ wget https://raw.githubusercontent.com/peterwup/myproxmox/main/prox_config_backu
 wget https://raw.githubusercontent.com/peterwup/myproxmox/main/cleanup.sh -O ~/cleanup.sh --backups=0 -O ~/cleanup.sh 
 wget https://raw.githubusercontent.com/peterwup/myproxmox/main/vzdump-hook-script-with --backups=0 -O /usr/local/bin/vzdump-hook-script-with
 # chek if snipet folder exist and create if not
-wget https://raw.githubusercontent.com/peterwup/myproxmox/main/paperless-hook-script --backups=0 -O /var/lib/vz/nsippets/paperless-hook-script
+wget https://raw.githubusercontent.com/peterwup/myproxmox/main/paperless-hook-script --backups=0 -O /var/lib/vz/snippets/paperless-hook-script
 #
 # mv vzdump-hook-script /usr/local/bin/vzdump-hook-script 
 chmod a+x /usr/local/bin/vzdump-hook-script
 chmod a+x /usr/local/bin/vzdump-hook-script-with
-chmod a+x /var/lib/vz/nsippets/paperless-hook-script
+chmod a+x /var/lib/vz/snippets/paperless-hook-script
 #
 chmod a+x stop-PBS.sh
 chmod a+x start-PBS.sh
