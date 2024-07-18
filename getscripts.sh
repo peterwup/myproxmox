@@ -13,7 +13,7 @@ wget https://raw.githubusercontent.com/peterwup/myproxmox/main/paperless-hook-sc
 # mv vzdump-hook-script /usr/local/bin/vzdump-hook-script 
 chmod a+x /usr/local/bin/vzdump-hook-script
 chmod a+x /usr/local/bin/vzdump-hook-script-with
-# qm set 109 --hookscript local:snippets/paperless-hook-script to add hook script to CT
+# pct set 109 --hookscript local:snippets/paperless-hook-script to add hook script to CT
 chmod a+x /var/lib/vz/snippets/paperless-hook-script
 #
 chmod a+x stop-PBS.sh
