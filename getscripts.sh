@@ -7,10 +7,12 @@ wget https://raw.githubusercontent.com/peterwup/myproxmox/main/vzdump-hook-scrip
 wget https://raw.githubusercontent.com/peterwup/myproxmox/main/prox_config_backup.sh -O ~/prox_config_backup.sh --backups=0
 wget https://raw.githubusercontent.com/peterwup/myproxmox/main/cleanup.sh -O ~/cleanup.sh --backups=0 -O ~/cleanup.sh 
 wget https://raw.githubusercontent.com/peterwup/myproxmox/main/vzdump-hook-script-with --backups=0 -O /usr/local/bin/vzdump-hook-script-with
+wget https://raw.githubusercontent.com/peterwup/myproxmox/main/paperless-hook-script --backups=0 -O /usr/local/bin/paperless-hook-script
 #
 # mv vzdump-hook-script /usr/local/bin/vzdump-hook-script 
 chmod a+x /usr/local/bin/vzdump-hook-script
 chmod a+x /usr/local/bin/vzdump-hook-script-with
+chmod a+x /usr/local/bin/paperless-hook-script
 #
 chmod a+x stop-PBS.sh
 chmod a+x start-PBS.sh
