@@ -7,7 +7,10 @@ set -x
 #-----------------------------------------------------------------------------------------------------------------#
 
 # mount the SMB share of tkfileserevr for paperless 
-if [ $1 == "pre-start" ]; then     
+# $0 = Aufrufzeile
+# $1 = ID der VM
+# $2 = status
+if [ $2 == "pre-start" ]; then     
   /usr/bin/mount /mnt/paperless/
 fi
 
