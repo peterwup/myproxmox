@@ -11,6 +11,9 @@ A set of scripts for PROXMOX
 * push them at the right position
 * set the "executable" flags to them for all users
 
+[paperless-hook-script](https://github.com/peterwup/myproxmox/blob/main/paperless-hook-script)
+* mount 
+
 [prox_config_backup.sh](https://github.com/peterwup/myproxmox/blob/main/prox_config_backup.sh)
 * script I found on github
 * script will backup the proxmox configuration data (like /etc/*)
