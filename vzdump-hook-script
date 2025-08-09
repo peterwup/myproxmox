@@ -31,7 +31,7 @@ sleep_after_wakeup=1m                                           # Sleep time aft
 sleep_after_powerdown=1m                                        # Sleep time after a shut down which is typically needed you have to check for your device
 
 # general data 
-nic=enp2s0                                                      # network interface for WOL
+nic=vmbr0                                                       # network interface for WOL
 TimeoutTimes=120                                                # time out time in [s] for different things
 storeid=backup                                                  # Identifier of the storage which shall be used for the backup
 storagetype=cifs                                                # type of the storage "dir" or "cifs" ... 
