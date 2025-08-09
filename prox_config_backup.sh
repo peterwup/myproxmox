@@ -1,6 +1,6 @@
 #!/bin/bash
-# Version             0.2.4
-# Date                08.04.2024
+# Version             0.3.0
+# Date                19.04.2024
 # Author              DerDanilo 
 # Contributors    aboutte, xmirakulix, bootsie123, phidauex
 
@@ -39,6 +39,7 @@ _bdir=${BACK_DIR:-$DEFAULT_BACK_DIR}
 if [[ ! -d "${_bdir}" ]] ; then
     echo "Aborting because backup target does not exists" ; exit 1
 fi
+
 # temporary storage directory
 _tdir=${TMP_DIR:-/var/tmp}
 
@@ -71,13 +72,17 @@ _filename6="$_tdir/proxmoxpackages.$_now.list"
 _filename7="$_tdir/proxmoxreport.$_now.txt"
 _filename8="$_tdir/proxmoxlocalbin.$_now.tar"
 _filename9="$_tdir/proxmoxetcpve.$_now.tar"
+_filename10="$_tdir/proxmoxopt.$_now.tar"
 _filename_final="$_tdir/pve_"$_HOSTNAME"_"$_now".tar.gz"
 
 ##########
+
 function description {
 # Check to see if we are in an interactive terminal, if not, skip the description
     if [[ -t 0 && -t 1 ]]; then
         clear
+        files_to_be_saved="/etc/*, /var/lib/pve-cluster/*, /root/*, /var/spool/cron/*, /usr/share/kvm/*.vbios"
+        if [ "$BACKUP_OPT_FOLDER" = true ]; then files_to_be_saved="${files_to_be_saved}, /opt/*"; fi
         cat <<EOF
 
         Proxmox Server Config Backup
@@ -85,7 +90,7 @@ function description {
         Timestamp: "$_now"
 
         Files to be saved:
-        "/etc/*, /var/lib/pve-cluster/*, /root/*, /var/spool/cron/*, /usr/share/kvm/*.vbios"
+        "$files_to_be_saved"
 
         Backup target:
         "$_bdir"
@@ -106,6 +111,7 @@ EOF
         clear
     fi
 }
+
 function are-we-root-abort-if-not {
     if [[ ${EUID} -ne 0 ]] ; then
       echo "Aborting because you are not root" ; exit 1
@@ -113,10 +119,10 @@ function are-we-root-abort-if-not {
 }
 
 function check-num-backups {
-    if [[ $(ls ${_bdir}/*${_HOSTNAME}*_*.tar.gz -l | grep ^- | wc -l) -ge $MAX_BACKUPS ]]; then
-      local oldbackup="$(basename $(ls ${_bdir}/*${_HOSTNAME}*.tar.gz -t | tail -1))"
-      echo "${_bdir}/${oldbackup}"
-      rm "${_bdir}/${oldbackup}"
+    if [[ $(ls ${_bdir}/*_${_HOSTNAME}_*.tar.gz | wc -l) -ge $MAX_BACKUPS ]]; then
+      local oldbackups="$(ls ${_bdir}/*_${_HOSTNAME}_*.tar.gz -t | tail -n +$MAX_BACKUPS)"
+      echo "${oldbackups}"
+      rm ${oldbackups}
     fi
 }
 
@@ -129,11 +135,13 @@ function copyfilesystem {
     tar --warning='no-file-ignored' -cvPf "$_filename3" --one-file-system /root/.
     tar --warning='no-file-ignored' -cvPf "$_filename4" /var/spool/cron/.
 
+    if [ "$BACKUP_OPT_FOLDER" = true ]; then tar --warning='no-file-ignored' -cvPf "$_filename10" --one-file-system /opt/.; fi
+
     if [ "$(ls -A /usr/local/bin 2>/dev/null)" ]; then tar --warning='no-file-ignored' -cvPf "$_filename8" /usr/local/bin/.; fi
 
     if [ "$(ls /usr/share/kvm/*.vbios 2>/dev/null)" != "" ] ; then
-        echo backing up custom video bios...
-        tar --warning='no-file-ignored' -cvPf "$_filename5" /usr/share/kvm/*.vbios
+	echo backing up custom video bios...
+	tar --warning='no-file-ignored' -cvPf "$_filename5" /usr/share/kvm/*.vbios
     fi
     # copy installed packages list
     echo "Copying installed packages list from APT"
@@ -168,6 +176,11 @@ function startservices {
 }
 
 ##########
+
+# Send a healthcheck.io start
+if [ $HEALTHCHECKS -eq 1 ]; then
+    curl -fsS -m 10 --retry 5 -o /dev/null $HEALTHCHECKS_URL/start
+fi
 
 description
 are-we-root-abort-if-not
