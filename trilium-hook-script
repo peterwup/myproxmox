@@ -1,0 +1,12 @@
+#!/bin/bash
+# trilium-hook-script
+#----------------------- Variablen --------------------------------------------------------------------------------#
+# SET-X damit die Ausfuehrung protokolliert wird
+#set -x
+
+#-----------------------------------------------------------------------------------------------------------------#
+# mount the SMB share of tkfileserevr for trilium
+if [ $2 == "pre-start" ]; then     
+ /usr/bin/mount /mnt/trilium/
+fi
+exit 0
